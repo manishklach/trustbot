@@ -52,6 +52,57 @@ curl -X POST http://127.0.0.1:8000/v1/analyze `
   -d '{ "content_type":"text", "text":"URGENT: Your KYC is pending. Click https://bit.ly/verify-kyc and share OTP to avoid account block." }'
 ```
 
+### Sample output (Example 1)
+
+```json
+{
+  "verdict": "RISKY",
+  "confidence": 0.623,
+  "reasons": [
+    "Uses urgent/threatening language designed to rush you.",
+    "Asks for an OTP — a common scam pattern.",
+    "Threatens account action tied to KYC — common social-engineering tactic.",
+    "Link uses a URL shortener, which often hides the true destination."
+  ],
+  "reason_codes": [
+    "SCAM_URGENT_LANGUAGE",
+    "SCAM_OTP_REQUEST",
+    "SCAM_KYC_THREAT",
+    "URL_SHORTENER"
+  ],
+  "next_step": "Do not act on this. Avoid clicking links or sharing OTP. Verify via official channels.",
+  "evidence_request": null,
+  "debug": {
+    "risk": 0.71,
+    "pipelines": [
+      {
+        "name": "scam_text",
+        "len": 98,
+        "urls": ["https://bit.ly/verify-kyc"]
+      },
+      {
+        "name": "url_checks",
+        "host": "bit.ly",
+        "scheme": "https"
+      },
+      {
+        "name": "provenance",
+        "fetch": {
+          "ok": true,
+          "final_domain": "irs.gov",
+          "status": 403,
+          "chain": [
+            "https://bit.ly/verify-kyc",
+            "(redirected to a final domain; path redacted)"
+          ],
+          "content_type": "text/html"
+        }
+      }
+    ]
+  }
+}
+
+
 ### 2) Suspicious shortened link (expected: **RISKY** or **UNSURE**)
 
 ```powershell
