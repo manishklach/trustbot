@@ -296,6 +296,7 @@ V2 separates concerns more explicitly:
 The full V2 design rationale is documented in:
 
 - `V2_ARCHITECTURE.md`
+- `CHANGELOG.md`
 
 ## Repository layout
 
@@ -368,6 +369,7 @@ Current regression coverage focuses on:
 - URL extraction from text into derived V2 link artifacts
 - low-signal image input resolving as `NEED_MORE`
 - brand/domain mismatch links resolving as `RISKY`
+- fixture-driven golden cases in `tests/fixtures/v2_cases.json`
 
 ## License
 

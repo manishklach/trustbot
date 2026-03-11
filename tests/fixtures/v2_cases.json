@@ -1,0 +1,43 @@
+[
+  {
+    "name": "otp_text_risky",
+    "artifact": {
+      "type": "text",
+      "text": "URGENT: Your KYC is pending. Share OTP now to avoid account block."
+    },
+    "expected_verdict": "RISKY",
+    "expected_status": "RESOLVED",
+    "headline_contains": "OTP scam"
+  },
+  {
+    "name": "text_with_shortened_link_derives_link_artifact",
+    "artifact": {
+      "type": "text",
+      "text": "URGENT: Click https://bit.ly/verify-kyc and share OTP now."
+    },
+    "expected_verdict": "RISKY",
+    "expected_status": "RESOLVED",
+    "expected_artifact_types": ["text", "link"],
+    "expected_evidence_codes": ["URL_SHORTENER"]
+  },
+  {
+    "name": "missing_image_needs_more",
+    "artifact": {
+      "type": "image",
+      "image_b64": ""
+    },
+    "expected_verdict": "NEED_MORE",
+    "expected_status": "WAITING_FOR_USER",
+    "next_best_artifact_type": "source_artifact"
+  },
+  {
+    "name": "brand_domain_mismatch_risky",
+    "artifact": {
+      "type": "link",
+      "url": "https://amazon-secure-login.example.com/signin"
+    },
+    "expected_verdict": "RISKY",
+    "expected_status": "RESOLVED",
+    "reason_contains": "official domain"
+  }
+]
