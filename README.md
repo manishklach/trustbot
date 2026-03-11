@@ -1,35 +1,111 @@
-# TrustBot — WhatsApp Forward-Check (Risk-First)
+# TrustBot
 
-Forward suspicious messages → get a **RISKY/UNSURE** verdict plus a minimal **“what to send next”** prompt (link, screenshot, resend-as-document, etc.).
+Risk-first scam triage for forwarded messages, links, screenshots, and documents.
 
-TrustBot supports:
-- **Text** (forwarded messages)
-- **Links** (redirect + provenance checks)
-- **Screenshots / PDFs** (text extraction; optional OCR)
+TrustBot started as a small heuristic API for answering a practical question:
 
----
+"I got this forwarded on chat. Should I trust it?"
 
-## Design goal (risk-first)
+The project now has two layers:
 
-TrustBot is optimized for real usage: people forward messages they suspect are fake/spam.
+- `v1`: a simple single-pass analyzer
+- `v2`: an investigation-oriented API that stores artifacts, collects structured evidence, and supports multi-turn follow-up
 
-- Outputs are intentionally **RISKY/UNSURE-first**
-- **SAFE is rare** (only with strong positive evidence)
-- When uncertain, TrustBot asks for **one minimal extra artifact** to resolve the case
+## Why this exists
 
----
+Most suspicious forwards are incomplete:
+
+- cropped screenshots
+- shortened links
+- partial copied text
+- messages missing sender context
+
+That makes scam detection a poor fit for a one-shot "safe or unsafe" classifier.
+
+TrustBot is intentionally opinionated:
+
+- it is risk-first
+- it treats "safe" as rare
+- it prefers asking for one precise follow-up artifact over bluffing confidence
+
+## Current product shape
+
+### V1
+
+`/v1/analyze` routes a single artifact through heuristic pipelines and returns:
+
+- `RISKY`
+- `UNSURE`
+- `SAFE` (rare)
+
+This is the original MVP surface.
+
+### V2
+
+`/v2/investigations/*` treats analysis as an investigation:
+
+- create or continue a case
+- store artifacts
+- collect evidence from providers
+- aggregate weighted evidence
+- return `RISKY`, `NEED_MORE`, or `LIKELY_SAFE`
+
+This is the new direction for the project.
+
+## What TrustBot analyzes
+
+- text forwards
+- links
+- screenshots/images
+- PDFs and image-like documents
+- small context notes added by the user in V2
+
+## How TrustBot thinks
+
+TrustBot is designed around a few product rules:
+
+1. Strong scam signals should dominate weak neutral signals.
+2. `LIKELY_SAFE` should require positive evidence, not merely absence of red flags.
+3. If confidence is low, the response should request one next-best artifact.
+4. User-facing explanations should be plain-language and operational.
+
+## Features
+
+### V1 capabilities
+
+- scam-text pattern matching for urgency, OTP, KYC, payment, and callback lures
+- URL static checks for shorteners, IP literals, no TLS, punycode, and suspicious TLDs
+- URL provenance checks via redirect following and shallow landing-page inspection
+- image quality heuristics for compression and low-signal screenshots
+- document text extraction and optional OCR-backed text analysis
+
+### V2 capabilities
+
+- first-class investigations
+- first-class artifacts
+- structured evidence items
+- weighted decision engine
+- multi-turn artifact continuation
+- heuristic impersonation checks
+- heuristic domain reputation hints
+- SQLite-backed persistence for local development
 
 ## Disclaimer
 
-TrustBot is an independent research/evaluation project and is **not affiliated with, endorsed by, or sponsored by WhatsApp or Meta**.  
-“WhatsApp” is used **descriptively** to indicate the intended workflow (users forwarding suspicious messages for verification).  
+TrustBot is an independent research/evaluation project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.
+
+"WhatsApp" is used descriptively to indicate the intended workflow of forwarding suspicious content for verification.
+
 No warranties are provided. Use at your own risk.
 
----
+## Quickstart
 
-## Quickstart (Windows PowerShell)
+### Requirements
 
-> If PowerShell script execution is restricted, you can run Python directly via the venv path (shown below) without activation.
+- Python 3.10+
+- Windows PowerShell examples are shown below, but the app is plain Python/FastAPI
+
+### Install and run
 
 ```powershell
 python -m venv .venv
@@ -37,14 +113,42 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-Service will run at:
+Server:
+
 - `http://127.0.0.1:8000`
 
----
+Docs:
 
-## Examples
+- `http://127.0.0.1:8000/docs`
 
-### 1) Classic OTP/KYC scam (expected: **RISKY**)
+## Optional OCR support
+
+If you want OCR for screenshots or documents when plain extraction is insufficient:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-ocr.txt
+```
+
+Notes:
+
+- you may need to install Tesseract OCR separately
+- if OCR is unavailable, TrustBot degrades toward uncertainty rather than pretending confidence
+
+## API overview
+
+### V1 endpoint
+
+- `POST /v1/analyze`
+
+### V2 endpoints
+
+- `POST /v2/investigations/analyze`
+- `GET /v2/investigations/{investigation_id}`
+- `POST /v2/investigations/{investigation_id}/artifacts`
+
+## V1 request examples
+
+### Text scam example
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/v1/analyze `
@@ -52,58 +156,7 @@ curl -X POST http://127.0.0.1:8000/v1/analyze `
   -d '{ "content_type":"text", "text":"URGENT: Your KYC is pending. Click https://bit.ly/verify-kyc and share OTP to avoid account block." }'
 ```
 
-### Sample output (Example 1)
-
-```json
-{
-  "verdict": "RISKY",
-  "confidence": 0.623,
-  "reasons": [
-    "Uses urgent/threatening language designed to rush you.",
-    "Asks for an OTP — a common scam pattern.",
-    "Threatens account action tied to KYC — common social-engineering tactic.",
-    "Link uses a URL shortener, which often hides the true destination."
-  ],
-  "reason_codes": [
-    "SCAM_URGENT_LANGUAGE",
-    "SCAM_OTP_REQUEST",
-    "SCAM_KYC_THREAT",
-    "URL_SHORTENER"
-  ],
-  "next_step": "Do not act on this. Avoid clicking links or sharing OTP. Verify via official channels.",
-  "evidence_request": null,
-  "debug": {
-    "risk": 0.71,
-    "pipelines": [
-      {
-        "name": "scam_text",
-        "len": 98,
-        "urls": ["https://bit.ly/verify-kyc"]
-      },
-      {
-        "name": "url_checks",
-        "host": "bit.ly",
-        "scheme": "https"
-      },
-      {
-        "name": "provenance",
-        "fetch": {
-          "ok": true,
-          "final_domain": "irs.gov",
-          "status": 403,
-          "chain": [
-            "https://bit.ly/verify-kyc",
-            "(redirected to a final domain; path redacted)"
-          ],
-          "content_type": "text/html"
-        }
-      }
-    ]
-  }
-}
-```
-
-### 2) Suspicious shortened link (expected: **RISKY** or **UNSURE**)
+### Link example
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/v1/analyze `
@@ -111,7 +164,7 @@ curl -X POST http://127.0.0.1:8000/v1/analyze `
   -d '{ "content_type":"link", "url":"http://bit.ly/otp-reset" }'
 ```
 
-### 3) Neutral forward (expected: **UNSURE** → may ask for one more artifact)
+### Neutral text example
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/v1/analyze `
@@ -119,61 +172,166 @@ curl -X POST http://127.0.0.1:8000/v1/analyze `
   -d '{ "content_type":"text", "text":"Your bill is generated. Please pay by due date." }'
 ```
 
-### 4) Screenshot / image forward (helper script)
-
-> Tip: use the helper script for images/PDFs so you don’t have to deal with base64.
+### Local helper for image or document input
 
 ```powershell
 .\.venv\Scripts\python.exe tools\demo_local.py --image .\samples\some_screenshot.png
-```
-
-### 5) PDF / document forward (optional OCR)
-
-```powershell
 .\.venv\Scripts\python.exe tools\demo_local.py --file .\samples\some_notice.pdf
 ```
 
-If OCR is not installed, TrustBot will typically return **UNSURE** and request a resend-as-document or text.
+## V2 request examples
 
----
-
-## Interpreting results
-
-- **RISKY**: Strong scam signals detected (OTP request, urgency, suspicious redirects, credential forms, etc.).  
-  → Do not click links, do not share OTP, verify via official channels.
-
-- **UNSURE**: Not enough evidence. TrustBot will request **one minimal extra artifact**  
-  (paste the URL, resend as document, or add 1–2 lines of context).
-
-- **SAFE (rare)**: Only used when risk is very low and evidence quality is good.  
-  → Not a guarantee; still verify if money/OTP is involved.
-
----
-
-## Optional: OCR support
-
-If you want OCR for image/PDF text extraction (when normal extraction isn’t enough):
+### Start an investigation from text
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-ocr.txt
+curl -X POST http://127.0.0.1:8000/v2/investigations/analyze `
+  -H "Content-Type: application/json" `
+  -d '{ "artifact": { "type":"text", "text":"URGENT: Your KYC is pending. Share OTP now." }, "locale":"en_IN", "channel":"whatsapp" }'
 ```
 
-Notes:
-- You may need to install **Tesseract OCR** separately on Windows and ensure it is on PATH.
-- If OCR is unavailable, TrustBot will degrade gracefully to **UNSURE**.
+Example response:
 
----
+```json
+{
+  "investigation_id": "inv_123",
+  "status": "RESOLVED",
+  "verdict": "RISKY",
+  "confidence": 0.63,
+  "headline": "This looks like a likely OTP scam.",
+  "reasons": [
+    "Asks for an OTP — a common scam pattern.",
+    "Uses urgent/threatening language designed to rush you."
+  ],
+  "recommended_action": "Do not click links, share OTPs, send money, or call numbers from the message. Verify through an official channel you open yourself.",
+  "next_best_artifact": null,
+  "artifacts_seen": 1,
+  "trace": {
+    "risk_score": 0.775,
+    "trust_score": 0.0,
+    "quality_penalty": 0.0,
+    "coverage_score": 0.25,
+    "contradiction_score": 0.0
+  }
+}
+```
+
+### Continue an investigation with another artifact
+
+```powershell
+curl -X POST http://127.0.0.1:8000/v2/investigations/inv_123/artifacts `
+  -H "Content-Type: application/json" `
+  -d '{ "artifact": { "type":"context", "text":"This came from a forwarded family group and claims to be from my bank." } }'
+```
+
+### Fetch a case
+
+```powershell
+curl http://127.0.0.1:8000/v2/investigations/inv_123
+```
+
+## Response semantics
+
+### V1 verdicts
+
+- `RISKY`: strong scam signals found
+- `UNSURE`: not enough evidence
+- `SAFE`: low-risk with better-than-neutral evidence, but still not a guarantee
+
+### V2 verdicts
+
+- `RISKY`: strong risk evidence exists
+- `NEED_MORE`: current artifacts are insufficient or low quality
+- `LIKELY_SAFE`: positive evidence supports legitimacy, with low contradiction
+
+## Architecture
+
+### V1 architecture
+
+V1 is intentionally small:
+
+- route request by content type
+- run relevant pipelines
+- fuse heuristic signals
+- return verdict and next step
+
+Core files:
+
+- `app/main.py`
+- `app/router.py`
+- `app/fusion.py`
+- `app/evidence.py`
+- `app/pipelines/`
+
+### V2 architecture
+
+V2 separates concerns more explicitly:
+
+- `app/api/` for FastAPI routes
+- `app/domain/` for models, enums, and decisioning
+- `app/providers/` for evidence collectors
+- `app/services/` for orchestration
+- `app/repositories/` for persistence
+- `app/schemas/` for request/response models
+
+The full V2 design rationale is documented in:
+
+- `V2_ARCHITECTURE.md`
 
 ## Repository layout
 
-- `app/` — API + scoring pipeline
-- `scoring/` — heuristics and risk fusion
-- `provenance/` — URL redirect + content-type checks
-- `tools/` — local demo helpers (files/images)
-- `samples/` — put your test screenshots/PDFs here (not required)
+```text
+app/
+  api/            # v2 routes
+  domain/         # v2 enums, models, decision engine
+  pipelines/      # v1 heuristic analyzers reused by v2 providers
+  providers/      # v2 evidence collectors
+  repositories/   # SQLite-backed local persistence for v2
+  schemas/        # v2 API request/response models
+  services/       # v2 orchestration services
+  evidence.py     # v1 evidence-request logic
+  fusion.py       # v1 signal fusion
+  main.py         # FastAPI app entrypoint
+  models.py       # v1 request/response models
+  router.py       # v1 routing/orchestration
+  storage.py      # v1 ephemeral storage helpers
+tools/
+  demo_local.py   # helper script for local image/document analysis
+samples/          # sample inputs
+V2_ARCHITECTURE.md
+README.md
+```
 
----
+## Local persistence in V2
+
+V2 uses SQLite by default for local development.
+
+- default DB path: `trustbot_v2.db`
+- override with: `TRUSTBOT_DB_PATH`
+
+Example:
+
+```powershell
+$env:TRUSTBOT_DB_PATH = "data\trustbot_v2.db"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+## Known limitations
+
+- V1 and current V2 are still heuristic-first, not evaluation-calibrated
+- V2 domain reputation is intentionally lightweight today
+- impersonation detection is rule-based, not model-backed
+- V2 does not yet auto-promote URLs extracted from text into linked child artifacts
+- OCR quality depends on the environment and Tesseract availability
+- there is not yet a formal benchmark dataset committed in-repo
+
+## Suggested next steps
+
+- add URL extraction into linked V2 artifacts
+- add a regression/evaluation harness with labeled cases
+- strengthen impersonation and brand/domain consistency checks
+- improve response composition for richer plain-language explanations
+- add a simple UI or CLI flow for multi-turn investigations
 
 ## License
 
-MIT (see `LICENSE`).
+MIT

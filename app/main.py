@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from app.api.investigations import router as investigations_router
 from app.models import AnalyzeRequest, AnalyzeResponse
 from app.router import route_and_analyze
 from app.fusion import fuse
 from app.evidence import maybe_request_evidence
 
 app = FastAPI(title="WhatsApp Trust Bot (MVP)", version="0.2.0")
+app.include_router(investigations_router)
 
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
