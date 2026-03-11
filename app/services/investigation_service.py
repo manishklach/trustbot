@@ -25,6 +25,10 @@ class InvestigationService:
         self.store = store or V2Store(os.environ.get("TRUSTBOT_DB_PATH", "trustbot_v2.db"))
         self.evidence_service = evidence_service or EvidenceService()
 
+    @classmethod
+    def from_db_path(cls, db_path: str) -> "InvestigationService":
+        return cls(store=V2Store(db_path))
+
     def analyze(self, req: V2AnalyzeRequest) -> V2AnalyzeResponse:
         investigation = self._load_or_create(req.investigation_id, req.user_id, req.locale, req.channel)
         self._store_artifact_bundle(investigation.investigation_id, req.artifact, req.channel)

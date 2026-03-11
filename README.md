@@ -353,6 +353,22 @@ $env:TRUSTBOT_DB_PATH = "data\trustbot_v2.db"
 - improve response composition for richer plain-language explanations
 - add a simple UI or CLI flow for multi-turn investigations
 
+## Tests
+
+Install dependencies and run the V2 regression suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Current regression coverage focuses on:
+
+- obvious OTP scam text resolving as `RISKY`
+- URL extraction from text into derived V2 link artifacts
+- low-signal image input resolving as `NEED_MORE`
+- brand/domain mismatch links resolving as `RISKY`
+
 ## License
 
 MIT
