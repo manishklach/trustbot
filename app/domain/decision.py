@@ -96,7 +96,11 @@ def decide_investigation(artifacts: List[ArtifactRecord], evidence_items: List[E
 
     confidence = clamp01(max(risk_score, trust_score) * 0.75 + coverage_score * 0.2 - quality_penalty * 0.3)
 
-    if (risk_score >= 0.85 and coverage_score >= 0.25) or (max_risk_weight >= 0.9 and risk_score >= 0.7):
+    if (
+        (risk_score >= 0.85 and coverage_score >= 0.25)
+        or (max_risk_weight >= 0.9 and risk_score >= 0.7)
+        or (risk_score >= 0.65 and coverage_score >= 0.5 and max_risk_weight >= 0.75)
+    ):
         verdict = V2Verdict.RISKY
         status = InvestigationStatus.RESOLVED
     elif trust_score >= 0.85 and contradiction_score < 0.2 and coverage_score >= 0.5:

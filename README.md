@@ -179,6 +179,26 @@ curl -X POST http://127.0.0.1:8000/v1/analyze `
 .\.venv\Scripts\python.exe tools\demo_local.py --file .\samples\some_notice.pdf
 ```
 
+### V2 local helper
+
+Start an investigation:
+
+```powershell
+.\.venv\Scripts\python.exe tools\demo_v2.py --text "URGENT: Your KYC is pending. Click https://bit.ly/verify-kyc and share OTP now."
+```
+
+Continue an investigation:
+
+```powershell
+.\.venv\Scripts\python.exe tools\demo_v2.py --investigation-id inv_123 --type context --text "This came from a forwarded group and claims to be from my bank."
+```
+
+Fetch an investigation:
+
+```powershell
+.\.venv\Scripts\python.exe tools\demo_v2.py --investigation-id inv_123 --get
+```
+
 ## V2 request examples
 
 ### Start an investigation from text
@@ -296,6 +316,7 @@ app/
   storage.py      # v1 ephemeral storage helpers
 tools/
   demo_local.py   # helper script for local image/document analysis
+  demo_v2.py      # helper script for creating/continuing v2 investigations
 samples/          # sample inputs
 V2_ARCHITECTURE.md
 README.md
